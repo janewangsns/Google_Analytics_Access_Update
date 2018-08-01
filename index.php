@@ -15,7 +15,12 @@ session_start();
 // from the client_secretes.json you downloaded from the developer console.
 $client = new Google_Client();
 $client->setAuthConfig(__DIR__ . '/client_secrets.json');
-$client->addScope(Google_Service_Analytics::ANALYTICS_READONLY);
+$client->addScope(Google_Service_Analytics::ANALYTICS_MANAGE_USERS);
+
+//if (isset($_SESSION['access_token']) && $_SESSION['access_token']) {
+//    unset($_SESSION['access_token']);
+//    session_destroy();
+//}
 
 // If the user has already authorized this app then get an access token
 // else redirect to ask the user to authorize access to Google Analytics.
@@ -60,29 +65,14 @@ function getUsers($analytics, $accountId, $webPropertyId, $profileId){
     }
 
     foreach ($profileUserlinks->getItems() as $profileUserLink) {
-        $entity = $profileUserLink->getEntity();
-        $profileRef = $entity->getProfileRef();
         $userRef = $profileUserLink->getUserRef();
         $permissions = $profileUserLink->getPermissions();
 
-        $html = <<<HTML
-<pre>
-Profile user link id   = {$profileUserLink->getId()}
-Profile user link kind = {$profileUserLink->getKind()}
-
-Profile id   = {$profileRef->getId()}
-Profile name = {$profileRef->getName()}
-Profile kind = {$profileRef->getKind()}
-
-Permissions local     = {$permissions->getLocal()}
-Permissions effective = {$permissions->getEffective()}
-
-User id    = {$userRef->getId()}
-User kind  = {$userRef->getKind()}
-User email = {$userRef->getEmail()}
-</pre>
-HTML;
-        print $html;
+        if (strpos($userRef->email, '@sitesnstores.com.au')){
+            echo "<pre>";
+            print_r($userRef);
+            print_r($permissions);
+        }
     }
     return $profileUserlinks;
 }
