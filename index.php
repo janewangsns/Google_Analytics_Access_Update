@@ -16,6 +16,7 @@ session_start();
 $client = new Google_Client();
 $client->setAuthConfig(__DIR__ . '/client_secrets.json');
 $client->addScope(Google_Service_Analytics::ANALYTICS_MANAGE_USERS);
+$client->addScope(Google_Service_Analytics::ANALYTICS_READONLY);
 
 //if (isset($_SESSION['access_token']) && $_SESSION['access_token']) {
 //    unset($_SESSION['access_token']);
@@ -31,21 +32,55 @@ if (isset($_SESSION['access_token']) && $_SESSION['access_token']) {
     // Create an authorized analytics service object.
     $analytics = new Google_Service_Analytics($client);
 
-    $accountId = '91314234';
-    $webPropertyId = 'UA-91314234-37';
-    $profileId = '155131539';
+//    include __DIR__ . '/profile.php';
+//    die();
+    // Fixed Params
+    $valid_emails = array(
+        'Aasif' => 'aasif.a@sitesnstores.com.au',
+        'Ben' => 'ben@sitesnstores.com.au',
+        'BT' => 'brendan.t@sitesnstores.com.au',
+        'Gus' => 'gus.r@sitesnstores.com.au',
+        'James' => 'james.m@sitesnstores.com.au',
+        'Jay' => 'jay@sitesnstores.com.au',
+        'Joe' => 'joe@sitesnstores.com.au',
+        'Justin' => 'justin.o@sitesnstores.com.au',
+        'Tim' => 'tim@sitesnstores.com.au'
+    );
 
-    $profile = getUsers($analytics, $accountId, $webPropertyId, $profileId);
-//    echo "<pre>";
-//    print_r($profile);
-//    echo "die here";
-    die();
-    // Get the first view (profile) id for the authorized user.
-    $profile = getFirstProfileId($analytics);
+    if (($handle = fopen("Access_Update.csv", "r")) !== FALSE) {
+        while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+            // View details
+            $accountId = $data[1];
+            $webPropertyId = $data[2];
+            $profileId = $data[3];
 
-    // Get the results from the Core Reporting API and print the results.
-    $results = getResults($analytics, $profile);
-    printResults($results);
+            // Ready-to-assign user details
+            $email = $valid_emails[$data[0]];
+            $user_exist = false;
+
+            // Ready-to-remove users' details
+            $remove_emails = $valid_emails;
+            unset($remove_emails[$data[0]]);
+
+            // Get current user list
+            $profile = getUsers($analytics, $accountId, $webPropertyId, $profileId);
+            foreach ($profile->getItems() as $profile_item) {
+                $userEmail = $profile_item->getUserRef()->email;
+                if (in_array($userEmail, $remove_emails)){
+                    $userId = $profile_item->getUserRef()->id;
+                    removeUser($analytics, $accountId, $webPropertyId, $profileId, $userId);
+                }
+                if ($userEmail == $email){
+                    $user_exist = true;
+                }
+            }
+
+            if ($user_exist !== true){
+                addUser($analytics, $accountId, $webPropertyId, $profileId, $email);
+            }
+        }
+        fclose($handle);
+    }
 } else {
     $redirect_uri = 'http://' . $_SERVER['HTTP_HOST'] . '/GoogleAnalytics_AccessUpdate/oauth2callback.php';
     header('Location: ' . filter_var($redirect_uri, FILTER_SANITIZE_URL));
@@ -63,86 +98,45 @@ function getUsers($analytics, $accountId, $webPropertyId, $profileId){
         print 'There was a general API error '
             . $e->getCode() . ':' . $e->getMessage();
     }
-
-    foreach ($profileUserlinks->getItems() as $profileUserLink) {
-        $userRef = $profileUserLink->getUserRef();
-        $permissions = $profileUserLink->getPermissions();
-
-        if (strpos($userRef->email, '@sitesnstores.com.au')){
-            echo "<pre>";
-            print_r($userRef);
-            print_r($permissions);
-        }
-    }
     return $profileUserlinks;
 }
 
+function removeUser($analytics, $accountId, $webPropertyId, $profileId, $userId){
+    try {
+        $analytics->management_profileUserLinks->delete($accountId, $webPropertyId, $profileId, $profileId.':'.$userId);
+    } catch (apiServiceException $e) {
+        print 'There was an Analytics API service error '
+            . $e->getCode() . ':' . $e->getMessage();
 
-function getFirstProfileId($analytics) {
-    // Get the user's first view (profile) ID.
-
-    // Get the list of accounts for the authorized user.
-    $accounts = $analytics->management_accounts->listManagementAccounts();
-
-    if (count($accounts->getItems()) > 0) {
-        $items = $accounts->getItems();
-        $firstAccountId = $items[0]->getId();
-
-        // Get the list of properties for the authorized user.
-        $properties = $analytics->management_webproperties
-            ->listManagementWebproperties($firstAccountId);
-
-        if (count($properties->getItems()) > 0) {
-            $items = $properties->getItems();
-            $firstPropertyId = $items[0]->getId();
-
-            // Get the list of views (profiles) for the authorized user.
-            $profiles = $analytics->management_profiles
-                ->listManagementProfiles($firstAccountId, $firstPropertyId);
-
-            if (count($profiles->getItems()) > 0) {
-                $items = $profiles->getItems();
-
-                // Return the first view (profile) ID.
-                return $items[0]->getId();
-
-            } else {
-                throw new Exception('No views (profiles) found for this user.');
-            }
-        } else {
-            throw new Exception('No properties found for this user.');
-        }
-    } else {
-        throw new Exception('No accounts found for this user.');
+    } catch (apiException $e) {
+        print 'There was a general API error '
+            . $e->getCode() . ':' . $e->getMessage();
     }
 }
 
-function getResults($analytics, $profileId) {
-    // Calls the Core Reporting API and queries for the number of sessions
-    // for the last seven days.
-    return $analytics->data_ga->get(
-        'ga:' . $profileId,
-        '7daysAgo',
-        'today',
-        'ga:sessions');
-}
+function addUser($analytics, $accountId, $webPropertyId, $profileId, $userEmail){
+    // Create the user reference.
+    $userRef = new Google_Service_Analytics_UserRef();
+    $userRef->setEmail($userEmail);
 
-function printResults($results) {
-    // Parses the response from the Core Reporting API and prints
-    // the profile name and total sessions.
-    if (count($results->getRows()) > 0) {
+    // Create the permissions object.
+    $permissions = new Google_Service_Analytics_EntityUserLinkPermissions();
+    $permissions->setLocal(array('READ_AND_ANALYZE'));
 
-        // Get the profile name.
-        $profileName = $results->getProfileInfo()->getProfileName();
+    // Create the view (profile) user link.
+    $link = new Google_Service_Analytics_EntityUserLink();
+    $link->setPermissions($permissions);
+    $link->setUserRef($userRef);
 
-        // Get the entry for the first entry in the first row.
-        $rows = $results->getRows();
-        $sessions = $rows[0][0];
+    // This request creates a new View (Profile) User Link.
+    try {
+        $analytics->management_profileUserLinks->insert($accountId, $webPropertyId, $profileId, $link);
+    } catch (apiServiceException $e) {
+        print 'There was an Analytics API service error '
+            . $e->getCode() . ':' . $e->getMessage();
 
-        // Print the results.
-        print "<p>First view (profile) found: $profileName</p>";
-        print "<p>Total sessions: $sessions</p>";
-    } else {
-        print "<p>No results found.</p>";
+    } catch (apiException $e) {
+        print 'There was a general API error '
+            . $e->getCode() . ':' . $e->getMessage();
     }
 }
