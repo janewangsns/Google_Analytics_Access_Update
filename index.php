@@ -69,14 +69,17 @@ if (isset($_SESSION['access_token']) && $_SESSION['access_token']) {
                 if (in_array($userEmail, $remove_emails)){
                     $userId = $profile_item->getUserRef()->id;
                     removeUser($analytics, $accountId, $webPropertyId, $profileId, $userId);
+                    echo '<p>Removed: '.$profileId.' '.$userEmail.'</p>';
                 }
                 if ($userEmail == $email){
                     $user_exist = true;
+                    echo '<p>Exist: '.$profileId.' '.$userEmail.'</p>';
                 }
             }
 
             if ($user_exist !== true){
                 addUser($analytics, $accountId, $webPropertyId, $profileId, $email);
+                echo '<p>Add: '.$profileId.' '.$email.'</p>';
             }
         }
         fclose($handle);
