@@ -16,8 +16,7 @@ session_start();
 $client = new Google_Client();
 $client->setAuthConfig(__DIR__ . '/client_secrets.json');
 $client->setRedirectUri('http://' . $_SERVER['HTTP_HOST'] . '/GoogleAnalytics_AccessUpdate/oauth2callback.php');
-$client->addScope(Google_Service_Analytics::ANALYTICS_MANAGE_USERS);
-$client->addScope(Google_Service_Analytics::ANALYTICS_READONLY);
+$client->addScope(array(Google_Service_Analytics::ANALYTICS_MANAGE_USERS, Google_Service_Analytics::ANALYTICS));
 
 // Handle authorization flow from the server.
 if (! isset($_GET['code'])) {

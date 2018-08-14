@@ -15,8 +15,7 @@ session_start();
 // from the client_secretes.json you downloaded from the developer console.
 $client = new Google_Client();
 $client->setAuthConfig(__DIR__ . '/client_secrets.json');
-$client->addScope(Google_Service_Analytics::ANALYTICS_MANAGE_USERS);
-$client->addScope(Google_Service_Analytics::ANALYTICS_READONLY);
+$client->addScope(array(Google_Service_Analytics::ANALYTICS_MANAGE_USERS, Google_Service_Analytics::ANALYTICS));
 
 //if (isset($_SESSION['access_token']) && $_SESSION['access_token']) {
 //    unset($_SESSION['access_token']);
